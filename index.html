@@ -95,6 +95,7 @@
         <p>&copy; 2025 HIPROG. All rights reserved.</p>
     </footer>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
     <script>
         // URL Overpass API untuk mendapatkan data sekolah di Solo
         var overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
@@ -118,6 +119,34 @@
         processingMessage.innerText = "Sedang memproses data...";
         schoolList.appendChild(processingMessage);
 
+        // Fungsi untuk mengunduh data sebagai file Excel
+        function downloadExcel(data) {
+            var wb = XLSX.utils.book_new();
+            var ws_data = [
+                ["Nomor", "Nama Sekolah", "Alamat", "Kontak", "Website"]
+            ];
+
+            data.forEach((school, index) => {
+                ws_data.push([
+                    index + 1,
+                    school.name,
+                    school.address,
+                    school.phone,
+                    school.website
+                ]);
+            });
+
+            var ws = XLSX.utils.aoa_to_sheet(ws_data);
+            XLSX.utils.book_append_sheet(wb, ws, "Sekolah di Solo");
+            XLSX.writeFile(wb, "data_sekolah_solo.xlsx");
+        }
+
+        // Tambahkan tombol unduh
+        var downloadButton = document.createElement("button");
+        downloadButton.innerText = "Proses Pengambilan Data";
+        downloadButton.disabled = true;
+        document.body.insertBefore(downloadButton, document.querySelector("h1").nextSibling);
+
         // Ambil data dari Overpass API
         fetch(overpassUrl)
             .then(response => response.json())
@@ -127,6 +156,7 @@
                     smpCount = 0,
                     smaCount = 0,
                     smkCount = 0;
+                var schoolData = [];
 
                 for (const school of data.elements) {
                     var name = school.tags.name || "Sekolah Tanpa Nama";
@@ -135,22 +165,25 @@
                     var phone = school.tags["contact:phone"] || school.tags["phone"] || "Kontak tidak tersedia";
                     var website = school.tags["contact:website"] || school.tags["website"] || "";
 
-                    // Hitung jumlah sekolah berdasarkan level pendidikan
                     if (name.toLowerCase().includes("sd")) sdCount++;
                     else if (name.toLowerCase().includes("smp")) smpCount++;
                     else if (name.toLowerCase().includes("sma")) smaCount++;
                     else if (name.toLowerCase().includes("smk")) smkCount++;
 
-                    // Ambil alamat berdasarkan koordinat
                     var address = await getAddress(lat, lon);
 
-                    // Buat elemen daftar sekolah
+                    schoolData.push({
+                        name: name,
+                        address: address,
+                        phone: phone,
+                        website: website
+                    });
+
                     var listItem = document.createElement("li");
                     listItem.innerHTML = `<h2>${name}</h2>
-                  <p><strong>Alamat:</strong> ${address}</p>
-                  <p><strong>Kontak:</strong> ${phone}</p>`;
+              <p><strong>Alamat:</strong> ${address}</p>
+              <p><strong>Kontak:</strong> ${phone}</p>`;
 
-                    // Tambahkan tombol jika ada website
                     if (website) {
                         if (!website.startsWith("http")) {
                             website = "http://" + website;
@@ -168,15 +201,19 @@
                     schoolList.appendChild(listItem);
                 }
 
-                // Tampilkan total jumlah sekolah
                 var totalCount = document.createElement("p");
                 totalCount.innerHTML = `<strong>Total Sekolah:</strong> SD: ${sdCount}, SMP: ${smpCount}, SMA: ${smaCount}, SMK: ${smkCount}`;
                 schoolList.insertBefore(totalCount, schoolList.firstChild);
 
-                // Tampilkan pesan semua data sudah ditampilkan
                 var completionMessage = document.createElement("p");
                 completionMessage.innerText = "Semua data sudah ditampilkan.";
                 schoolList.appendChild(completionMessage);
+
+                downloadButton.innerText = "Download Data";
+                downloadButton.disabled = false;
+                downloadButton.onclick = function() {
+                    downloadExcel(schoolData);
+                };
             })
             .catch(error => {
                 console.error('Error mengambil data:', error);
