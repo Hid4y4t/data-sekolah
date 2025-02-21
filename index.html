@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Sekolah di Solo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            margin: 20px 0;
+            font-size: 2.5em;
+            color: #007bff;
+            text-align: center;
+        }
+        
+        ul {
+            list-style-type: none;
+            padding: 0;
+            width: 90%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        
+        li {
+            background: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin: 10px 0;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: left;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        li:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        h2 {
+            margin: 0 0 10px;
+            font-size: 1.75em;
+            color: #333;
+        }
+        
+        p {
+            margin: 5px 0;
+            font-size: 1em;
+            color: #666;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+        
+        footer {
+            margin-top: auto;
+            padding: 10px 0;
+            background-color: #007bff;
+            color: white;
+            width: 100%;
+            text-align: center;
+        }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+
+<body>
+    <h1>Peta Sekolah di Solo (SD, SMP, SMA, SMK)</h1>
+    <ul id="school-list"></ul>
+    <footer>
+        <p>&copy; 2025 HIPROG. All rights reserved.</p>
+    </footer>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // URL Overpass API untuk mendapatkan data sekolah di Solo
+        var overpassUrl = "https://overpass-api.de/api/interpreter?data=" +
+            "[out:json];" +
+            "area[name='Surakarta']->.searchArea;" +
+            "(node[amenity=school](area.searchArea);" +
+            "way[amenity=school](area.searchArea);" +
+            "relation[amenity=school](area.searchArea););" +
+            "out center tags;";
+
+        // Fungsi untuk mendapatkan alamat dari koordinat menggunakan Nominatim API
+        async function getAddress(lat, lon) {
+            let response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            let data = await response.json();
+            return data.display_name || "Alamat tidak tersedia";
+        }
+
+        // Tampilkan pesan sedang memproses data
+        var schoolList = document.getElementById("school-list");
+        var processingMessage = document.createElement("p");
+        processingMessage.innerText = "Sedang memproses data...";
+        schoolList.appendChild(processingMessage);
+
+        // Ambil data dari Overpass API
+        fetch(overpassUrl)
+            .then(response => response.json())
+            .then(async data => {
+                schoolList.removeChild(processingMessage);
+                var sdCount = 0,
+                    smpCount = 0,
+                    smaCount = 0,
+                    smkCount = 0;
+
+                for (const school of data.elements) {
+                    var name = school.tags.name || "Sekolah Tanpa Nama";
+                    var lat = school.lat || school.center.lat;
+                    var lon = school.lon || school.center.lon;
+                    var phone = school.tags["contact:phone"] || school.tags["phone"] || "Kontak tidak tersedia";
+                    var website = school.tags["contact:website"] || school.tags["website"] || "";
+
+                    // Hitung jumlah sekolah berdasarkan level pendidikan
+                    if (name.toLowerCase().includes("sd")) sdCount++;
+                    else if (name.toLowerCase().includes("smp")) smpCount++;
+                    else if (name.toLowerCase().includes("sma")) smaCount++;
+                    else if (name.toLowerCase().includes("smk")) smkCount++;
+
+                    // Ambil alamat berdasarkan koordinat
+                    var address = await getAddress(lat, lon);
+
+                    // Buat elemen daftar sekolah
+                    var listItem = document.createElement("li");
+                    listItem.innerHTML = `<h2>${name}</h2>
+                  <p><strong>Alamat:</strong> ${address}</p>
+                  <p><strong>Kontak:</strong> ${phone}</p>`;
+
+                    // Tambahkan tombol jika ada website
+                    if (website) {
+                        if (!website.startsWith("http")) {
+                            website = "http://" + website;
+                        }
+                        (function(website) {
+                            var btn = document.createElement("button");
+                            btn.innerText = "Kunjungi Website";
+                            btn.onclick = function() {
+                                window.open(website, "_blank");
+                            };
+                            listItem.appendChild(btn);
+                        })(website);
+                    }
+
+                    schoolList.appendChild(listItem);
+                }
+
+                // Tampilkan total jumlah sekolah
+                var totalCount = document.createElement("p");
+                totalCount.innerHTML = `<strong>Total Sekolah:</strong> SD: ${sdCount}, SMP: ${smpCount}, SMA: ${smaCount}, SMK: ${smkCount}`;
+                schoolList.insertBefore(totalCount, schoolList.firstChild);
+
+                // Tampilkan pesan semua data sudah ditampilkan
+                var completionMessage = document.createElement("p");
+                completionMessage.innerText = "Semua data sudah ditampilkan.";
+                schoolList.appendChild(completionMessage);
+            })
+            .catch(error => {
+                console.error('Error mengambil data:', error);
+                processingMessage.innerText = "Terjadi kesalahan saat mengambil data.";
+            });
+    </script>
+</body>
+
+</html>
